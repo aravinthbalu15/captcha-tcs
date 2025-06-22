@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { ArrowClockwise } from 'react-bootstrap-icons';
 import { apiService } from '@/services/api';
@@ -36,7 +36,7 @@ const MathCaptcha: React.FC<MathCaptchaProps> = ({ onValidation, className = "" 
     }
   };
 
-  const fallbackGeneration = () => {
+  const fallbackGeneration = useCallback(() => {
     const operators = ['+', '-', '*'];
     const operator = operators[Math.floor(Math.random() * operators.length)];
     let num1, num2, answer;
@@ -66,11 +66,11 @@ const MathCaptcha: React.FC<MathCaptchaProps> = ({ onValidation, className = "" 
     setUserAnswer('');
     setIsValid(false);
     onValidation(false, '', answer);
-  };
+  }, [onValidation]);
 
   useEffect(() => {
     generateProblem();
-  }, []);
+  }, []); // Remove onValidation from dependency array
 
   useEffect(() => {
     if (userAnswer.trim() === '') {
@@ -82,7 +82,7 @@ const MathCaptcha: React.FC<MathCaptchaProps> = ({ onValidation, className = "" 
     const isCorrect = parseInt(userAnswer) === expectedAnswer;
     setIsValid(isCorrect);
     onValidation(isCorrect, userAnswer, expectedAnswer);
-  }, [userAnswer, expectedAnswer, onValidation]);
+  }, [userAnswer, expectedAnswer]); // Remove onValidation from dependency array
 
   return (
     <div className={`mb-3 ${className}`}>
