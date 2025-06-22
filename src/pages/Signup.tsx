@@ -1,14 +1,11 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Mail, Lock, User, ArrowLeft } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import MathCaptcha from "@/components/MathCaptcha";
-import { toast } from "@/hooks/use-toast";
+import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Shield, Envelope, Lock, Person, ArrowLeft } from 'react-bootstrap-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import MathCaptcha from '@/components/MathCaptcha';
+import { toast } from 'react-hot-toast';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -21,12 +18,20 @@ const Signup = () => {
   });
   const [errors, setErrors] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isCaptchaValid, setIsCaptchaValid] = useState(false);
+  const [captchaData, setCaptchaData] = useState({
+    isValid: false,
+    answer: '',
+    expected: 0
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors) setErrors('');
+  };
+
+  const handleCaptchaValidation = (isValid: boolean, answer: string, expected: number) => {
+    setCaptchaData({ isValid, answer, expected });
   };
 
   const validateForm = () => {
@@ -50,7 +55,7 @@ const Signup = () => {
       setErrors('Passwords do not match');
       return false;
     }
-    if (!isCaptchaValid) {
+    if (!captchaData.isValid) {
       setErrors('Please solve the CAPTCHA correctly');
       return false;
     }
@@ -66,15 +71,19 @@ const Signup = () => {
     setErrors('');
 
     try {
-      const success = await signup(formData.name, formData.email, formData.password);
-      if (success) {
-        toast({
-          title: "Account created!",
-          description: "Welcome to SecureApp. Your account has been successfully created.",
-        });
+      const result = await signup(
+        formData.name, 
+        formData.email, 
+        formData.password,
+        captchaData.answer,
+        captchaData.expected
+      );
+      
+      if (result.success) {
+        toast.success('Account created successfully! Welcome to SecureApp.');
         navigate('/dashboard');
       } else {
-        setErrors('Failed to create account. Please try again.');
+        setErrors(result.message);
       }
     } catch (error) {
       setErrors('An error occurred during signup');
@@ -84,128 +93,142 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        {/* Back to Home */}
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/')}
-          className="text-gray-600 hover:text-blue-600 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Button>
+    <div className="min-vh-100 bg-gradient" style={{background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)'}}>
+      <Container className="py-5">
+        <Row className="justify-content-center">
+          <Col md={6} lg={5}>
+            {/* Back to Home */}
+            <Button
+              variant="link"
+              onClick={() => navigate('/')}
+              className="text-muted text-decoration-none mb-4 p-0"
+            >
+              <ArrowLeft className="me-2" />
+              Back to Home
+            </Button>
 
-        <Card className="shadow-xl border-0">
-          <CardHeader className="text-center pb-2">
-            <div className="flex justify-center mb-4">
-              <div className="bg-blue-100 p-3 rounded-full">
-                <Shield className="h-8 w-8 text-blue-600" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-gray-800">Create Account</CardTitle>
-            <CardDescription className="text-gray-600">
-              Join us today and experience secure authentication
-            </CardDescription>
-          </CardHeader>
+            <Card className="shadow-lg border-0">
+              <Card.Header className="text-center bg-white py-4">
+                <div className="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style={{width: '80px', height: '80px'}}>
+                  <Shield size={40} className="text-primary" />
+                </div>
+                <Card.Title as="h2" className="fw-bold text-dark mb-2">Create Account</Card.Title>
+                <Card.Subtitle className="text-muted">
+                  Join us today with your real email address
+                </Card.Subtitle>
+              </Card.Header>
 
-          <CardContent className="space-y-6">
-            {errors && (
-              <Alert variant="destructive">
-                <AlertDescription>{errors}</AlertDescription>
-              </Alert>
-            )}
+              <Card.Body className="p-4">
+                {errors && (
+                  <Alert variant="danger" className="mb-4">
+                    {errors}
+                  </Alert>
+                )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center">
-                  <User className="h-4 w-4 mr-2" />
-                  Full Name
-                </label>
-                <Input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="Enter your full name"
-                  className="h-12"
-                  required
-                />
-              </div>
+                <Form onSubmit={handleSubmit}>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-muted d-flex align-items-center">
+                      <Person className="me-2" />
+                      Full Name
+                    </Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="Enter your full name"
+                      size="lg"
+                      required
+                    />
+                  </Form.Group>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Email Address
-                </label>
-                <Input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Enter your email"
-                  className="h-12"
-                  required
-                />
-              </div>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-muted d-flex align-items-center">
+                      <Envelope className="me-2" />
+                      Email Address
+                    </Form.Label>
+                    <Form.Control
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="Enter your real email address"
+                      size="lg"
+                      required
+                    />
+                    <Form.Text className="text-muted">
+                      Please use a valid email address that you have access to.
+                    </Form.Text>
+                  </Form.Group>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Password
-                </label>
-                <Input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="Create a password (min. 6 characters)"
-                  className="h-12"
-                  required
-                />
-              </div>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-muted d-flex align-items-center">
+                      <Lock className="me-2" />
+                      Password
+                    </Form.Label>
+                    <Form.Control
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      placeholder="Create a password (min. 6 characters)"
+                      size="lg"
+                      required
+                    />
+                  </Form.Group>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Confirm Password
-                </label>
-                <Input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  placeholder="Confirm your password"
-                  className="h-12"
-                  required
-                />
-              </div>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-muted d-flex align-items-center">
+                      <Lock className="me-2" />
+                      Confirm Password
+                    </Form.Label>
+                    <Form.Control
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      placeholder="Confirm your password"
+                      size="lg"
+                      required
+                    />
+                  </Form.Group>
 
-              <MathCaptcha 
-                onValidation={setIsCaptchaValid}
-                className="pt-2"
-              />
+                  <MathCaptcha 
+                    onValidation={handleCaptchaValidation}
+                    className="mb-4"
+                  />
 
-              <Button
-                type="submit"
-                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-            </form>
-          </CardContent>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    className="w-100 fw-medium"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Creating Account...
+                      </>
+                    ) : (
+                      'Create Account'
+                    )}
+                  </Button>
+                </Form>
+              </Card.Body>
 
-          <CardFooter className="text-center">
-            <p className="text-sm text-gray-600 w-full">
-              Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                Sign in here
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
-      </div>
+              <Card.Footer className="text-center bg-light">
+                <p className="text-muted mb-0">
+                  Already have an account?{' '}
+                  <Link to="/login" className="text-primary text-decoration-none fw-medium">
+                    Sign in here
+                  </Link>
+                </p>
+              </Card.Footer>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
     </div>
   );
 };

@@ -1,50 +1,71 @@
 
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { RefreshCw } from "lucide-react";
+import { Button, Form } from 'react-bootstrap';
+import { ArrowClockwise } from 'react-bootstrap-icons';
+import { apiService } from '@/services/api';
 
 interface MathCaptchaProps {
-  onValidation: (isValid: boolean) => void;
+  onValidation: (isValid: boolean, answer: string, expected: number) => void;
   className?: string;
 }
 
 const MathCaptcha: React.FC<MathCaptchaProps> = ({ onValidation, className = "" }) => {
-  const [num1, setNum1] = useState(0);
-  const [num2, setNum2] = useState(0);
-  const [operator, setOperator] = useState('+');
+  const [problem, setProblem] = useState('');
+  const [expectedAnswer, setExpectedAnswer] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [isValid, setIsValid] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const generateProblem = () => {
+  const generateProblem = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiService.getCaptcha();
+      if (response.success) {
+        setProblem(response.problem);
+        setExpectedAnswer(response.answer);
+        setUserAnswer('');
+        setIsValid(false);
+        onValidation(false, '', response.answer);
+      }
+    } catch (error) {
+      console.error('Error generating CAPTCHA:', error);
+      // Fallback to client-side generation if backend is unavailable
+      fallbackGeneration();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fallbackGeneration = () => {
     const operators = ['+', '-', '*'];
-    const selectedOperator = operators[Math.floor(Math.random() * operators.length)];
-    let n1, n2;
-    
-    switch (selectedOperator) {
+    const operator = operators[Math.floor(Math.random() * operators.length)];
+    let num1, num2, answer;
+
+    switch (operator) {
       case '+':
-        n1 = Math.floor(Math.random() * 20) + 1;
-        n2 = Math.floor(Math.random() * 20) + 1;
+        num1 = Math.floor(Math.random() * 20) + 1;
+        num2 = Math.floor(Math.random() * 20) + 1;
+        answer = num1 + num2;
         break;
       case '-':
-        n1 = Math.floor(Math.random() * 20) + 10;
-        n2 = Math.floor(Math.random() * n1) + 1;
+        num1 = Math.floor(Math.random() * 20) + 10;
+        num2 = Math.floor(Math.random() * num1) + 1;
+        answer = num1 - num2;
         break;
       case '*':
-        n1 = Math.floor(Math.random() * 10) + 1;
-        n2 = Math.floor(Math.random() * 10) + 1;
+        num1 = Math.floor(Math.random() * 10) + 1;
+        num2 = Math.floor(Math.random() * 10) + 1;
+        answer = num1 * num2;
         break;
       default:
-        n1 = 5;
-        n2 = 3;
+        answer = 0;
     }
-    
-    setNum1(n1);
-    setNum2(n2);
-    setOperator(selectedOperator);
+
+    setProblem(`${num1} ${operator} ${num2}`);
+    setExpectedAnswer(answer);
     setUserAnswer('');
     setIsValid(false);
-    onValidation(false);
+    onValidation(false, '', answer);
   };
 
   useEffect(() => {
@@ -54,59 +75,44 @@ const MathCaptcha: React.FC<MathCaptchaProps> = ({ onValidation, className = "" 
   useEffect(() => {
     if (userAnswer.trim() === '') {
       setIsValid(false);
-      onValidation(false);
+      onValidation(false, userAnswer, expectedAnswer);
       return;
     }
 
-    let correctAnswer;
-    switch (operator) {
-      case '+':
-        correctAnswer = num1 + num2;
-        break;
-      case '-':
-        correctAnswer = num1 - num2;
-        break;
-      case '*':
-        correctAnswer = num1 * num2;
-        break;
-      default:
-        correctAnswer = 0;
-    }
-
-    const isCorrect = parseInt(userAnswer) === correctAnswer;
+    const isCorrect = parseInt(userAnswer) === expectedAnswer;
     setIsValid(isCorrect);
-    onValidation(isCorrect);
-  }, [userAnswer, num1, num2, operator, onValidation]);
+    onValidation(isCorrect, userAnswer, expectedAnswer);
+  }, [userAnswer, expectedAnswer, onValidation]);
 
   return (
-    <div className={`space-y-3 ${className}`}>
-      <label className="block text-sm font-medium text-gray-700">
+    <div className={`mb-3 ${className}`}>
+      <Form.Label className="fw-medium text-muted">
         Verify you're human (solve this math problem):
-      </label>
-      <div className="flex items-center space-x-3">
-        <div className="bg-gray-100 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-lg font-mono">
-          {num1} {operator} {num2} = ?
+      </Form.Label>
+      <div className="d-flex align-items-center gap-3 mb-2">
+        <div className="bg-light px-3 py-2 rounded border-2 border-dashed text-monospace fs-5">
+          {isLoading ? 'Loading...' : problem} = ?
         </div>
         <Button
-          type="button"
-          variant="outline"
+          variant="outline-secondary"
           size="sm"
           onClick={generateProblem}
-          className="flex-shrink-0"
+          disabled={isLoading}
         >
-          <RefreshCw className="h-4 w-4" />
+          <ArrowClockwise />
         </Button>
       </div>
-      <div className="flex items-center space-x-2">
-        <Input
+      <div className="d-flex align-items-center gap-2">
+        <Form.Control
           type="number"
           value={userAnswer}
           onChange={(e) => setUserAnswer(e.target.value)}
           placeholder="Your answer"
-          className={`w-32 ${isValid ? 'border-green-500' : userAnswer ? 'border-red-500' : ''}`}
+          style={{ width: '120px' }}
+          className={isValid ? 'border-success' : userAnswer ? 'border-danger' : ''}
         />
         {userAnswer && (
-          <span className={`text-sm ${isValid ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`small ${isValid ? 'text-success' : 'text-danger'}`}>
             {isValid ? '✓ Correct' : '✗ Incorrect'}
           </span>
         )}

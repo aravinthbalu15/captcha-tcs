@@ -1,16 +1,18 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiService } from '@/services/api';
 
 interface User {
   id: string;
   name: string;
   email: string;
+  isEmailVerified: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, rememberMe: boolean) => Promise<boolean>;
-  signup: (name: string, email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, rememberMe: boolean, captchaAnswer: string, captchaExpected: number) => Promise<{ success: boolean; message: string }>;
+  signup: (name: string, email: string, password: string, captchaAnswer: string, captchaExpected: number) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -30,75 +32,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData') || sessionStorage.getItem('userData');
-    
-    if (token && userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userData');
-        sessionStorage.removeItem('authToken');
-        sessionStorage.removeItem('userData');
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      
+      if (token) {
+        try {
+          const response = await apiService.getCurrentUser();
+          if (response.success) {
+            setUser(response.user);
+          } else {
+            // Token is invalid, remove it
+            localStorage.removeItem('authToken');
+            sessionStorage.removeItem('authToken');
+          }
+        } catch (error) {
+          console.error('Error verifying token:', error);
+          localStorage.removeItem('authToken');
+          sessionStorage.removeItem('authToken');
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  const login = async (email: string, password: string, rememberMe: boolean): Promise<boolean> => {
+  const login = async (email: string, password: string, rememberMe: boolean, captchaAnswer: string, captchaExpected: number): Promise<{ success: boolean; message: string }> => {
     try {
-      // Simulate API call - In real app, this would be an actual API request
-      const mockUser = {
-        id: '1',
-        name: email.split('@')[0],
-        email: email
-      };
+      const response = await apiService.login(email, password, captchaAnswer, captchaExpected);
       
-      // Simulate JWT token
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem('authToken', mockToken);
-      storage.setItem('userData', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
-      return true;
-    } catch (error) {
+      if (response.success) {
+        const storage = rememberMe ? localStorage : sessionStorage;
+        storage.setItem('authToken', response.token);
+        setUser(response.user);
+        return { success: true, message: response.message };
+      } else {
+        return { success: false, message: response.message };
+      }
+    } catch (error: any) {
       console.error('Login error:', error);
-      return false;
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Login failed. Please try again.' 
+      };
     }
   };
 
-  const signup = async (name: string, email: string, password: string): Promise<boolean> => {
+  const signup = async (name: string, email: string, password: string, captchaAnswer: string, captchaExpected: number): Promise<{ success: boolean; message: string }> => {
     try {
-      // Simulate API call for signup
-      const mockUser = {
-        id: Date.now().toString(),
-        name: name,
-        email: email
-      };
+      const response = await apiService.signup(name, email, password, captchaAnswer, captchaExpected);
       
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      localStorage.setItem('authToken', mockToken);
-      localStorage.setItem('userData', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
-      return true;
-    } catch (error) {
+      if (response.success) {
+        localStorage.setItem('authToken', response.token);
+        setUser(response.user);
+        return { success: true, message: response.message };
+      } else {
+        return { success: false, message: response.message };
+      }
+    } catch (error: any) {
       console.error('Signup error:', error);
-      return false;
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Registration failed. Please try again.' 
+      };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('authToken');
-    localStorage.removeItem('userData');
     sessionStorage.removeItem('authToken');
-    sessionStorage.removeItem('userData');
     setUser(null);
   };
 
